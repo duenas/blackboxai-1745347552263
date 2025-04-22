@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crear y Conectar Instancia - QR</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white shadow-md rounded-lg p-8 max-w-md w-full">
+    <h1 class="text-2xl font-semibold mb-6 text-center text-gray-800">Crear y Conectar Instancia</h1>
+    <label for="instanceName" class="block text-gray-700 font-medium mb-2">Nombre de la Instancia</label>
+    <input
+      type="text"
+      id="instanceName"
+      placeholder="Ejemplo: mi_instancia"
+      class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+    />
+    <button
+      id="createBtn"
+      class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+    >
+      <i class="fas fa-plus mr-2"></i> Crear y Conectar
+    </button>
+    <div id="loading" class="mt-4 text-center text-blue-600 hidden">
+      <i class="fas fa-spinner fa-spin mr-2"></i> Procesando...
+    </div>
+    <div id="error" class="mt-4 text-center text-red-600 hidden"></div>
+    <div id="qrContainer" class="mt-6 flex justify-center">
+      <!-- QR code image will be inserted here -->
+    </div>
+  </div>
+
+  <script>
+    const createBtn = document.getElementById('createBtn');
+    const instanceNameInput = document.getElementById('instanceName');
+    const loading = document.getElementById('loading');
+    const errorDiv = document.getElementById('error');
+    const qrContainer = document.getElementById('qrContainer');
+
+    // Forcing HTTP protocol explicitly to avoid mixed content issues
+    const API_BASE = 'http://34.28.158.226:6060';
+    const API_KEY = 'zYzP7ocstxh3SJ23D4FZTCu4ehnM8v4hu';
+
+    function setLoading(isLoading) {
+      if (isLoading) {
+        loading.classList.remove('hidden');
+        createBtn.disabled = true;
+        errorDiv.classList.add('hidden');
+        qrContainer.innerHTML = '';
+      } else {
+        loading.classList.add('hidden');
+        createBtn.disabled = false;
+      }
+    }
+
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.classList.remove('hidden');
+    }
+
+    async function createInstance(instanceName) {
+      const url = `${API_BASE}/instance/create`;
+      const payload = { instanceName };
+      const headers = {
+        'Content-Type': 'application/json',
+        'apikey': API_KEY,
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error creando instancia: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    }
+
+    async function connectInstance(instanceName, token) {
+      const url = `${API_BASE}/instance/connect/${encodeURIComponent(instanceName)}`;
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error conectando instancia: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    }
+
+    createBtn.addEventListener('click', async () => {
+      const instanceName = instanceNameInput.value.trim();
+      if (!instanceName) {
+        showError('Por favor, ingresa un nombre de instancia válido.');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        // Crear instancia
+        const createData = await createInstance(instanceName);
+        const createdInstanceName = createData.instance?.instanceName;
+        const token = createData.hash?.apikey;
+
+        if (!createdInstanceName || !token) {
+          throw new Error('Respuesta inválida al crear la instancia.');
+        }
+
+        // Conectar instancia y obtener QR
+        const connectData = await connectInstance(createdInstanceName, token);
+        const qrBase64 = connectData.base64;
+
+        if (!qrBase64) {
+          throw new Error('No se recibió el código QR.');
+        }
+
+        // Mostrar QR
+        qrContainer.innerHTML = `<img src="${qrBase64}" alt="Código QR de la instancia" class="max-w-full h-auto rounded-md shadow-md" />`;
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    });
+  </script>
+</body>
+</html>
