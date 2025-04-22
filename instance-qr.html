@@ -33,31 +33,73 @@
       <i class="fas fa-spinner fa-spin mr-2"></i> Procesando...
     </div>
     <div id="error" class="mt-4 text-center text-red-600 hidden"></div>
-    <div id="qrContainer" class="mt-6 flex justify-center">
+  <div id="qrContainer" class="mt-6 flex flex-col items-center">
       <!-- QR code image will be inserted here -->
     </div>
+
+    <button
+      id="deleteBtn"
+      class="mb-4 w-full bg-red-600 text-white py-2 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+      disabled
+    >
+      <i class="fas fa-trash-alt mr-2"></i> Eliminar Instancia
+    </button>
+
+    <button
+      id="verifyBtn"
+      class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+      disabled
+    >
+      <i class="fas fa-check mr-2"></i> Verificar Instancia
+    </button>
+
+    <div id="verifyLoading" class="mt-4 text-center text-green-600 hidden">
+      <i class="fas fa-spinner fa-spin mr-2"></i> Verificando...
+    </div>
+    <div id="verifyResult" class="mt-4 text-center text-gray-800 whitespace-pre-wrap"></div>
+
   </div>
 
   <script>
     const createBtn = document.getElementById('createBtn');
+    const verifyBtn = document.getElementById('verifyBtn');
     const instanceNameInput = document.getElementById('instanceName');
     const loading = document.getElementById('loading');
+    const verifyLoading = document.getElementById('verifyLoading');
     const errorDiv = document.getElementById('error');
     const qrContainer = document.getElementById('qrContainer');
+    const verifyResult = document.getElementById('verifyResult');
 
     // Forcing HTTP protocol explicitly to avoid mixed content issues
     const API_BASE = 'http://34.28.158.226:6060';
     const API_KEY = 'zYzP7ocstxh3SJ23D4FZTCu4ehnM8v4hu';
 
+    let currentInstanceName = null;
+    let currentToken = null;
+
     function setLoading(isLoading) {
       if (isLoading) {
         loading.classList.remove('hidden');
         createBtn.disabled = true;
+        verifyBtn.disabled = true;
         errorDiv.classList.add('hidden');
         qrContainer.innerHTML = '';
+        verifyResult.textContent = '';
       } else {
         loading.classList.add('hidden');
         createBtn.disabled = false;
+        verifyBtn.disabled = currentInstanceName ? false : true;
+      }
+    }
+
+    function setVerifyLoading(isLoading) {
+      if (isLoading) {
+        verifyLoading.classList.remove('hidden');
+        verifyBtn.disabled = true;
+        verifyResult.textContent = '';
+      } else {
+        verifyLoading.classList.add('hidden');
+        verifyBtn.disabled = false;
       }
     }
 
@@ -107,6 +149,25 @@
       return response.json();
     }
 
+    async function verifyInstance(instanceName, token) {
+      const url = `${API_BASE}/instance/connectionState/${encodeURIComponent(instanceName)}`;
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error verificando instancia: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    }
+
     createBtn.addEventListener('click', async () => {
       const instanceName = instanceNameInput.value.trim();
       if (!instanceName) {
@@ -126,6 +187,9 @@
           throw new Error('Respuesta inválida al crear la instancia.');
         }
 
+        currentInstanceName = createdInstanceName;
+        currentToken = token;
+
         // Conectar instancia y obtener QR
         const connectData = await connectInstance(createdInstanceName, token);
         const qrBase64 = connectData.base64;
@@ -136,6 +200,248 @@
 
         // Mostrar QR
         qrContainer.innerHTML = `<img src="${qrBase64}" alt="Código QR de la instancia" class="max-w-full h-auto rounded-md shadow-md" />`;
+
+        // Habilitar botón verificar
+        verifyBtn.disabled = false;
+        verifyResult.textContent = '';
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    verifyBtn.addEventListener('click', async () => {
+      if (!currentInstanceName || !currentToken) {
+        showError('No hay instancia creada para verificar.');
+        return;
+      }
+
+      setVerifyLoading(true);
+
+      try {
+        const verifyData = await verifyInstance(currentInstanceName, currentToken);
+        verifyResult.textContent = JSON.stringify(verifyData, null, 2);
+      } catch (err) {
+        verifyResult.textContent = `Error: ${err.message}`;
+      } finally {
+        setVerifyLoading(false);
+      }
+    });
+    const createBtn = document.getElementById('createBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const instanceNameInput = document.getElementById('instanceName');
+    const loading = document.getElementById('loading');
+    const verifyLoading = document.getElementById('verifyLoading');
+    const errorDiv = document.getElementById('error');
+    const qrContainer = document.getElementById('qrContainer');
+    const verifyResult = document.getElementById('verifyResult');
+
+    // Forcing HTTP protocol explicitly to avoid mixed content issues
+    const API_BASE = 'http://34.28.158.226:6060';
+    const API_KEY = 'zYzP7ocstxh3SJ23D4FZTCu4ehnM8v4hu';
+    const COOKIE_HEADER = 'codechat.api.sid=s%3AFVNmNU_UzGyKlndk-9kHt0lwWPCxmlcC.VMqjkSsd2Gi8wvcyobd8k6%2F63t3vVVlsMFIksxjvEDM';
+
+    let currentInstanceName = null;
+    let currentToken = null;
+
+    function setLoading(isLoading) {
+      if (isLoading) {
+        loading.classList.remove('hidden');
+        createBtn.disabled = true;
+        deleteBtn.disabled = true;
+        verifyBtn.disabled = true;
+        errorDiv.classList.add('hidden');
+        qrContainer.innerHTML = '';
+        verifyResult.textContent = '';
+      } else {
+        loading.classList.add('hidden');
+        createBtn.disabled = false;
+        deleteBtn.disabled = currentInstanceName ? false : true;
+        verifyBtn.disabled = currentInstanceName ? false : true;
+      }
+    }
+
+    function setVerifyLoading(isLoading) {
+      if (isLoading) {
+        verifyLoading.classList.remove('hidden');
+        verifyBtn.disabled = true;
+        deleteBtn.disabled = true;
+        verifyResult.textContent = '';
+      } else {
+        verifyLoading.classList.add('hidden');
+        verifyBtn.disabled = false;
+        deleteBtn.disabled = false;
+      }
+    }
+
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.classList.remove('hidden');
+    }
+
+    async function createInstance(instanceName) {
+      const url = `${API_BASE}/instance/create`;
+      const payload = { instanceName };
+      const headers = {
+        'Content-Type': 'application/json',
+        'apikey': API_KEY,
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error creando instancia: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    }
+
+    async function connectInstance(instanceName, token) {
+      const url = `${API_BASE}/instance/connect/${encodeURIComponent(instanceName)}`;
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error conectando instancia: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    }
+
+    async function verifyInstance(instanceName, token) {
+      const url = `${API_BASE}/instance/connectionState/${encodeURIComponent(instanceName)}`;
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error verificando instancia: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    }
+
+    async function deleteInstance(instanceName, token) {
+      const url = `${API_BASE}/instance/delete/${encodeURIComponent(instanceName)}`;
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Cookie': COOKIE_HEADER,
+      };
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error eliminando instancia: ${response.status} ${errorText}`);
+      }
+
+      return response.json();
+    }
+
+    createBtn.addEventListener('click', async () => {
+      const instanceName = instanceNameInput.value.trim();
+      if (!instanceName) {
+        showError('Por favor, ingresa un nombre de instancia válido.');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        // Crear instancia
+        const createData = await createInstance(instanceName);
+        const createdInstanceName = createData.instance?.instanceName;
+        const token = createData.hash?.apikey;
+
+        if (!createdInstanceName || !token) {
+          throw new Error('Respuesta inválida al crear la instancia.');
+        }
+
+        currentInstanceName = createdInstanceName;
+        currentToken = token;
+
+        // Conectar instancia y obtener QR
+        const connectData = await connectInstance(createdInstanceName, token);
+        const qrBase64 = connectData.base64;
+
+        if (!qrBase64) {
+          throw new Error('No se recibió el código QR.');
+        }
+
+        // Mostrar QR
+        qrContainer.innerHTML = `<img src="${qrBase64}" alt="Código QR de la instancia" class="max-w-full h-auto rounded-md shadow-md" />`;
+
+        // Habilitar botones eliminar y verificar
+        deleteBtn.disabled = false;
+        verifyBtn.disabled = false;
+        verifyResult.textContent = '';
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    verifyBtn.addEventListener('click', async () => {
+      if (!currentInstanceName || !currentToken) {
+        showError('No hay instancia creada para verificar.');
+        return;
+      }
+
+      setVerifyLoading(true);
+
+      try {
+        const verifyData = await verifyInstance(currentInstanceName, currentToken);
+        verifyResult.textContent = JSON.stringify(verifyData, null, 2);
+      } catch (err) {
+        verifyResult.textContent = `Error: ${err.message}`;
+      } finally {
+        setVerifyLoading(false);
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      if (!currentInstanceName || !currentToken) {
+        showError('No hay instancia creada para eliminar.');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        await deleteInstance(currentInstanceName, currentToken);
+
+        // Limpiar estado y UI
+        currentInstanceName = null;
+        currentToken = null;
+        qrContainer.innerHTML = '';
+        verifyResult.textContent = '';
+        instanceNameInput.value = '';
+        deleteBtn.disabled = true;
+        verifyBtn.disabled = true;
       } catch (err) {
         showError(err.message);
       } finally {
